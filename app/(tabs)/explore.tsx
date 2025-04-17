@@ -1,109 +1,285 @@
-import { StyleSheet, Image, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  SafeAreaView,
+  Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import tw from 'twrnc';
+import { AntDesign } from '@expo/vector-icons';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+const Explore = () => {
+  const [task, setTask] = useState('');
+  const [subject, setSubject] = useState('');
+  const [date, setDate] = useState('');
+  const [tasks, setTasks] = useState([]);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedDay, setSelectedDay] = useState(null);
 
-export default function TabTwoScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+
+  const getDaysInMonth = (month, year) => {
+    const days = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: days }, (_, i) => i + 1);
+  };
+
+  const formatDate = (day, month, year) => {
+    return `${day} ${months[month]} ${year}`;
+  };
+
+  const saveTasksToStorage = async (tasks) => {
+    try {
+      await AsyncStorage.setItem('tasks', JSON.stringify(tasks));
+    } catch (error) {
+      console.error('Failed to save tasks to storage:', error);
+    }
+  };
+
+  const loadTasksFromStorage = async () => {
+    try {
+      const storedTasks = await AsyncStorage.getItem('tasks');
+      if (storedTasks) {
+        setTasks(JSON.parse(storedTasks));
+      }
+    } catch (error) {
+      console.error('Failed to load tasks from storage:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadTasksFromStorage();
+  }, []);
+
+  useEffect(() => {
+    saveTasksToStorage(tasks);
+  }, [tasks]);
+
+  const addTask = () => {
+    if (!task || !subject || !date) return;
+
+    if (editingTaskId) {
+      const updatedTasks = tasks.map(item =>
+        item.id === editingTaskId
+          ? { ...item, task, subject, date }
+          : item
+      );
+      setTasks(updatedTasks);
+      setEditingTaskId(null);
+    } else {
+      const newTask = {
+        id: Date.now().toString(),
+        task,
+        subject,
+        date,
+        completed: false,
+      };
+      setTasks([...tasks, newTask]);
+    }
+
+    setTask('');
+    setSubject('');
+    setDate('');
+  };
+
+  const startEdit = (item) => {
+    setTask(item.task);
+    setSubject(item.subject);
+    setDate(item.date);
+    setEditingTaskId(item.id);
+  };
+
+  const toggleComplete = (id) => {
+    const updatedTasks = tasks.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    );
+    setTasks(updatedTasks);
+  };
+
+  const confirmDelete = (id) => {
+    Alert.alert(
+      "Hapus Tugas",
+      "Apakah kamu yakin ingin menghapus tugas ini?",
+      [
+        { text: "Batal", style: "cancel" },
+        { text: "Hapus", onPress: () => deleteTask(id), style: "destructive" }
+      ]
+    );
+  };
+
+  const deleteTask = (id) => {
+    const updatedTasks = tasks.filter(item => item.id !== id);
+    setTasks(updatedTasks);
+  };
+
+  const renderItem = ({ item }) => (
+    <View style={tw`bg-gray-800 rounded-xl p-3 mb-3 shadow-md flex-row justify-between items-center`}>
+      <View style={tw`flex-row items-center flex-1`}>
+        <TouchableOpacity
+          style={tw`w-6 h-6 rounded-md mr-3 ${item.completed ? 'bg-green-700' : 'border-2 border-gray-400'}`}
+          onPress={() => toggleComplete(item.id)}
+        >
+          {item.completed && (
+            <AntDesign name="check" size={14} color="white" style={tw`self-center mt-0.5`} />
+          )}
+        </TouchableOpacity>
+        <View>
+          <Text style={tw`text-base font-bold ${item.completed ? 'text-gray-500 line-through' : 'text-white'}`}>
+            {item.task}
+          </Text>
+          <Text style={tw`text-gray-400`}>Mapel {item.subject}</Text>
+          <Text style={tw`text-red-400 font-bold mt-1`}>{item.date}</Text>
+        </View>
+      </View>
+      <View style={tw`flex-row`}>
+        <TouchableOpacity style={tw`p-2 bg-blue-700 rounded-md mr-2`} onPress={() => startEdit(item)}>
+          <AntDesign name="edit" size={16} color="white" />
+        </TouchableOpacity>
+        <TouchableOpacity style={tw`p-2 bg-red-700 rounded-md`} onPress={() => confirmDelete(item.id)}>
+          <AntDesign name="delete" size={16} color="white" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
-}
 
-const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-});
+  return (
+    <SafeAreaView style={tw`flex-1 bg-black pt-15`}>
+      <View style={tw`flex-1 p-4`}>
+        <Text style={tw`text-xl font-bold mb-4 text-white`}>📋 Tugasku</Text>
+
+        <TextInput
+          placeholder="Ada tugas apa hari ini?"
+          placeholderTextColor="gray"
+          style={tw`border rounded-md px-3 py-2 mb-3 bg-gray-900 text-white`}
+          value={task}
+          onChangeText={setTask}
+        />
+        <TextInput
+          placeholder="Mapelnya apa tu?"
+          placeholderTextColor="gray"
+          style={tw`border rounded-md px-3 py-2 mb-3 bg-gray-900 text-white`}
+          value={subject}
+          onChangeText={setSubject}
+        />
+
+        <View style={tw`flex-row items-center mb-3`}>
+          <TextInput
+            placeholder="Pilih tanggal"
+            placeholderTextColor="gray"
+            style={tw`flex-1 border rounded-md px-3 py-2 bg-gray-900 text-white`}
+            value={date}
+            editable={false}
+          />
+          <TouchableOpacity
+            onPress={() => setShowDateModal(true)}
+            style={tw`ml-2 p-3 bg-gray-700 rounded-md`}
+          >
+            <AntDesign name="calendar" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={tw`bg-blue-700 py-3 rounded-md mb-6`}
+          onPress={addTask}
+        >
+          <Text style={tw`text-white text-center font-bold`}>
+            {editingTaskId ? 'Simpan Perubahan' : 'Tambah Tugas'}
+          </Text>
+        </TouchableOpacity>
+
+        {tasks.length > 0 ? (
+          <>
+            <Text style={tw`font-bold mb-2 text-white`}>ADA TUGAS NI KAMU!</Text>
+            <FlatList
+              data={tasks}
+              keyExtractor={(item) => item.id}
+              renderItem={renderItem}
+            />
+          </>
+        ) : (
+          <Text style={tw`text-center text-gray-500`}>YEAY GADA TUGAS KAMU</Text>
+        )}
+      </View>
+
+      {/* Modal Tanggal */}
+      {showDateModal && (
+        <View style={tw`absolute inset-0 bg-black bg-opacity-50 justify-center items-center`}>
+          <View style={tw`bg-gray-900 p-4 rounded-lg w-80`}>
+            <Text style={tw`text-lg font-bold mb-4 text-center text-white`}>Pilih Tanggal</Text>
+
+            {/* Navigasi Bulan */}
+            <View style={tw`flex-row justify-between items-center mb-4`}>
+              <TouchableOpacity
+                onPress={() => {
+                  const newMonth = selectedMonth === 0 ? 11 : selectedMonth - 1;
+                  const newYear = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
+                  setSelectedMonth(newMonth);
+                  setSelectedYear(newYear);
+                }}
+                style={tw`p-2`}
+              >
+                <AntDesign name="left" size={16} color="white" />
+              </TouchableOpacity>
+
+              <Text style={tw`text-white font-bold text-center`}>
+                {months[selectedMonth]} {selectedYear}
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => {
+                  const newMonth = selectedMonth === 11 ? 0 : selectedMonth + 1;
+                  const newYear = selectedMonth === 11 ? selectedYear + 1 : selectedYear;
+                  setSelectedMonth(newMonth);
+                  setSelectedYear(newYear);
+                }}
+                style={tw`p-2`}
+              >
+                <AntDesign name="right" size={16} color="white" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Grid Tanggal */}
+            <FlatList
+              data={getDaysInMonth(selectedMonth, selectedYear)}
+              keyExtractor={(item) => item.toString()}
+              numColumns={7}
+              renderItem={({ item: day }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedDay(day);
+                    setDate(formatDate(day, selectedMonth, selectedYear));
+                    setShowDateModal(false);
+                  }}
+                  style={tw`w-8 h-8 m-1 rounded-md bg-gray-700 justify-center items-center ${
+                    selectedDay === day ? 'bg-blue-600' : ''
+                  }`}
+                >
+                  <Text style={tw`text-center text-white text-base`}>{day}</Text>
+                </TouchableOpacity>
+              )}
+              contentContainerStyle={tw`flex-wrap justify-center`}
+            />
+
+            <TouchableOpacity
+              onPress={() => setShowDateModal(false)}
+              style={tw`mt-4 bg-red-700 py-2 rounded-md`}
+            >
+              <Text style={tw`text-white text-center font-bold`}>Batal</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+};
+
+export default Explore;
